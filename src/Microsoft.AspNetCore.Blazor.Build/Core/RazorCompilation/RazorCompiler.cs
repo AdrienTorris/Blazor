@@ -1,15 +1,15 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using Microsoft.AspNetCore.Razor.Language;
-using Microsoft.AspNetCore.Blazor.Build.Core.RazorCompilation.Engine;
-using Microsoft.AspNetCore.Blazor.Components;
-using Microsoft.AspNetCore.Blazor.RenderTree;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.CodeDom.Compiler;
+using Microsoft.AspNetCore.Razor.Language;
+using Microsoft.AspNetCore.Blazor.Components;
+using Microsoft.AspNetCore.Blazor.Razor;
+using Microsoft.AspNetCore.Blazor.RenderTree;
 
 namespace Microsoft.AspNetCore.Blazor.Build.Core.RazorCompilation
 {
@@ -94,13 +94,14 @@ namespace Microsoft.AspNetCore.Blazor.Build.Core.RazorCompilation
                 // invocations.
 
                 var engine = new BlazorRazorEngine();
-
-                var sourceDoc = RazorSourceDocument.ReadFrom(inputFileContents, inputFilePath);
-                var codeDoc = RazorCodeDocument.Create(sourceDoc);
+                var blazorTemplateEngine = new BlazorTemplateEngine(
+                    engine.Engine,
+                    RazorProjectFileSystem.Create(inputRootPath));
+                var codeDoc = blazorTemplateEngine.CreateCodeDocument(
+                    new BlazorProjectItem(inputRootPath, inputFilePath, inputFileContents));
                 codeDoc.Items[BlazorCodeDocItems.Namespace] = combinedNamespace;
                 codeDoc.Items[BlazorCodeDocItems.ClassName] = itemClassName;
-                engine.Process(codeDoc);
-                var csharpDocument = codeDoc.GetCSharpDocument();
+                var csharpDocument = blazorTemplateEngine.GenerateCode(codeDoc);
                 var generatedCode = csharpDocument.GeneratedCode;
 
                 // Add parameters to the primary method via string manipulation because

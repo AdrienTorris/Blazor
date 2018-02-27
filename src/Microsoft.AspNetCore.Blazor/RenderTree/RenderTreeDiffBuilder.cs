@@ -153,13 +153,22 @@ namespace Microsoft.AspNetCore.Blazor.RenderTree
             // Preserve the actual componentInstance
             newComponentFrame = newComponentFrame.WithComponentInstance(componentId, componentInstance);
 
-            // Supply latest parameters. They might not have changed, but it's up to the
-            // recipient to decide what "changed" means. Currently we only supply the new
+            // As an important rendering optimization, we want to skip parameter update
+            // notifications if we know for sure they haven't changed/mutated. The
+            // "MayHaveChangedSince" logic is conservative, in that it returns true if
+            // any parameter is of a type we don't know is immutable. In this case
+            // we call SetParameters and it's up to the recipient to implement
+            // whatever change-detection logic they want. Currently we only supply the new
             // set of parameters and assume the recipient has enough info to do whatever
             // comparisons it wants with the old values. Later we could choose to pass the
-            // old parameter values if we wanted.
+            // old parameter values if we wanted. By default, components always rerender
+            // after any SetParameters call, which is safe but now always optimal for perf.
+            var oldParameters = new ParameterCollection(oldTree, oldComponentIndex);
             var newParameters = new ParameterCollection(newTree, newComponentIndex);
-            componentInstance.SetParameters(newParameters);
+            if (!newParameters.DefinitelyEquals(oldParameters))
+            {
+                componentInstance.SetParameters(newParameters);
+            }
         }
 
         private static int NextSiblingIndex(RenderTreeFrame frame, int frameIndex)
@@ -247,6 +256,15 @@ namespace Microsoft.AspNetCore.Blazor.RenderTree
                         break;
                     }
 
+                case RenderTreeFrameType.Region:
+                    {
+                        AppendDiffEntriesForRange(
+                            ref diffContext,
+                            oldFrameIndex + 1, oldFrameIndex + oldFrame.RegionSubtreeLength,
+                            newFrameIndex + 1, newFrameIndex + newFrame.RegionSubtreeLength);
+                        break;
+                    }
+
                 case RenderTreeFrameType.Component:
                     {
                         if (oldFrame.ComponentType == newFrame.ComponentType)
@@ -328,6 +346,17 @@ namespace Microsoft.AspNetCore.Blazor.RenderTree
                         diffContext.SiblingIndex++;
                         break;
                     }
+                case RenderTreeFrameType.Region:
+                    {
+                        var regionChildFrameIndex = newFrameIndex + 1;
+                        var regionChildFrameEndIndexExcl = newFrameIndex + newFrame.RegionSubtreeLength;
+                        while (regionChildFrameIndex < regionChildFrameEndIndexExcl)
+                        {
+                            InsertNewFrame(ref diffContext, regionChildFrameIndex);
+                            regionChildFrameIndex = NextSiblingIndex(newTree[regionChildFrameIndex], regionChildFrameIndex);
+                        }
+                        break;
+                    }
                 case RenderTreeFrameType.Text:
                     {
                         var referenceFrameIndex = diffContext.ReferenceFrames.Append(newFrame);
@@ -359,6 +388,17 @@ namespace Microsoft.AspNetCore.Blazor.RenderTree
                         var endIndexExcl = oldFrameIndex + oldFrame.ElementSubtreeLength;
                         DisposeFramesInRange(diffContext.BatchBuilder, oldTree, oldFrameIndex, endIndexExcl);
                         diffContext.Edits.Append(RenderTreeEdit.RemoveFrame(diffContext.SiblingIndex));
+                        break;
+                    }
+                case RenderTreeFrameType.Region:
+                    {
+                        var regionChildFrameIndex = oldFrameIndex + 1;
+                        var regionChildFrameEndIndexExcl = oldFrameIndex + oldFrame.RegionSubtreeLength;
+                        while (regionChildFrameIndex < regionChildFrameEndIndexExcl)
+                        {
+                            RemoveOldFrame(ref diffContext, regionChildFrameIndex);
+                            regionChildFrameIndex = NextSiblingIndex(oldTree[regionChildFrameIndex], regionChildFrameIndex);
+                        }
                         break;
                     }
                 case RenderTreeFrameType.Text:

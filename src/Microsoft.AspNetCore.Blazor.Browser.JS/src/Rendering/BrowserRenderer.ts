@@ -90,20 +90,22 @@ export class BrowserRenderer {
     }
   }
 
-  insertFrame(componentId: number, parent: Element, childIndex: number, frames: System_Array<RenderTreeFramePointer>, frame: RenderTreeFramePointer, frameIndex: number) {
+  insertFrame(componentId: number, parent: Element, childIndex: number, frames: System_Array<RenderTreeFramePointer>, frame: RenderTreeFramePointer, frameIndex: number): number {
     const frameType = renderTreeFrame.frameType(frame);
     switch (frameType) {
       case FrameType.element:
         this.insertElement(componentId, parent, childIndex, frames, frame, frameIndex);
-        break;
+        return 1;
       case FrameType.text:
         this.insertText(parent, childIndex, frame);
-        break;
+        return 1;
       case FrameType.attribute:
         throw new Error('Attribute frames should only be present as leading children of element frames.');
       case FrameType.component:
         this.insertComponent(parent, childIndex, frame);
-        break;
+        return 1;
+      case FrameType.region:
+        return this.insertFrameRange(componentId, parent, childIndex, frames, frameIndex + 1, frameIndex + renderTreeFrame.subtreeLength(frame));
       default:
         const unknownType: never = frameType; // Compile-time verification that the switch was exhaustive
         throw new Error(`Unknown frame type: ${unknownType}`);
@@ -166,14 +168,31 @@ export class BrowserRenderer {
     const browserRendererId = this.browserRendererId;
     const eventHandlerId = renderTreeFrame.attributeEventHandlerId(attributeFrame);
 
+    if (attributeName === 'value') {
+      if (this.tryApplyValueProperty(toDomElement, renderTreeFrame.attributeValue(attributeFrame))) {
+        return; // If this DOM element type has special 'value' handling, don't also write it as an attribute
+      }
+    }
+
     // TODO: Instead of applying separate event listeners to each DOM element, use event delegation
     // and remove all the _blazor*Listener hacks
     switch (attributeName) {
       case 'onclick': {
         toDomElement.removeEventListener('click', toDomElement['_blazorClickListener']);
-        const listener = () => raiseEvent(browserRendererId, componentId, eventHandlerId, 'mouse', { Type: 'click' });
+        const listener = evt => raiseEvent(evt, browserRendererId, componentId, eventHandlerId, 'mouse', { Type: 'click' });
         toDomElement['_blazorClickListener'] = listener;
         toDomElement.addEventListener('click', listener);
+        break;
+      }
+      case 'onchange': {
+        toDomElement.removeEventListener('change', toDomElement['_blazorChangeListener']);
+        const targetIsCheckbox = isCheckbox(toDomElement);
+        const listener = evt => {
+          const newValue = targetIsCheckbox ? evt.target.checked : evt.target.value;
+          raiseEvent(evt, browserRendererId, componentId, eventHandlerId, 'change', { Type: 'change', Value: newValue });
+        };
+        toDomElement['_blazorChangeListener'] = listener;
+        toDomElement.addEventListener('change', listener);
         break;
       }
       case 'onkeypress': {
@@ -183,7 +202,7 @@ export class BrowserRenderer {
           // just to establish that we can pass parameters when raising events.
           // We use C#-style PascalCase on the eventInfo to simplify deserialization, but this could
           // change if we introduced a richer JSON library on the .NET side.
-          raiseEvent(browserRendererId, componentId, eventHandlerId, 'keyboard', { Type: evt.type, Key: (evt as any).key });
+          raiseEvent(evt, browserRendererId, componentId, eventHandlerId, 'keyboard', { Type: evt.type, Key: (evt as any).key });
         };
         toDomElement['_blazorKeypressListener'] = listener;
         toDomElement.addEventListener('keypress', listener);
@@ -199,11 +218,29 @@ export class BrowserRenderer {
     }
   }
 
-  insertFrameRange(componentId: number, parent: Element, childIndex: number, frames: System_Array<RenderTreeFramePointer>, startIndex: number, endIndexExcl: number) {
+  tryApplyValueProperty(element: Element, value: string | null) {
+    // Certain elements have built-in behaviour for their 'value' property
+    switch (element.tagName) {
+      case 'INPUT':
+      case 'SELECT':
+        if (isCheckbox(element)) {
+          (element as HTMLInputElement).checked = value === 'True';
+        } else {
+          // Note: this doen't handle <select> correctly: https://github.com/aspnet/Blazor/issues/157
+          (element as any).value = value;
+        }
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  insertFrameRange(componentId: number, parent: Element, childIndex: number, frames: System_Array<RenderTreeFramePointer>, startIndex: number, endIndexExcl: number): number {
+    const origChildIndex = childIndex;
     for (let index = startIndex; index < endIndexExcl; index++) {
       const frame = getTreeFramePtr(frames, index);
-      this.insertFrame(componentId, parent, childIndex, frames, frame, index);
-      childIndex++;
+      const numChildrenInserted = this.insertFrame(componentId, parent, childIndex, frames, frame, index);
+      childIndex += numChildrenInserted;
 
       // Skip over any descendants, since they are already dealt with recursively
       const subtreeLength = renderTreeFrame.subtreeLength(frame);
@@ -211,7 +248,13 @@ export class BrowserRenderer {
         index += subtreeLength - 1;
       }
     }
+
+    return (childIndex - origChildIndex); // Total number of children inserted
   }
+}
+
+function isCheckbox(element: Element) {
+  return element.tagName === 'INPUT' && element.getAttribute('type') === 'checkbox';
 }
 
 function insertNodeIntoDOM(node: Node, parent: Element, childIndex: number) {
@@ -231,7 +274,9 @@ function removeAttributeFromDOM(parent: Element, childIndex: number, attributeNa
   element.removeAttribute(attributeName);
 }
 
-function raiseEvent(browserRendererId: number, componentId: number, eventHandlerId: number, eventInfoType: EventInfoType, eventInfo: any) {
+function raiseEvent(event: Event, browserRendererId: number, componentId: number, eventHandlerId: number, eventInfoType: EventInfoType, eventInfo: any) {
+  event.preventDefault();
+
   if (!raiseEventMethod) {
     raiseEventMethod = platform.findMethod(
       'Microsoft.AspNetCore.Blazor.Browser', 'Microsoft.AspNetCore.Blazor.Browser.Rendering', 'BrowserRendererEventDispatcher', 'DispatchEvent'
@@ -251,4 +296,4 @@ function raiseEvent(browserRendererId: number, componentId: number, eventHandler
   ]);
 }
 
-type EventInfoType = 'mouse' | 'keyboard';
+type EventInfoType = 'mouse' | 'keyboard' | 'change';

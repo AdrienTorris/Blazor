@@ -16,7 +16,27 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure
         {
             var opts = new ChromeOptions();
             opts.AddArgument("--headless");
-            Browser = new RemoteWebDriver(opts);
+
+            // On Windows/Linux, we don't need to set opts.BinaryLocation
+            // But for Travis Mac builds we do
+            var binaryLocation = Environment.GetEnvironmentVariable("TEST_CHROME_BINARY");
+            if (!string.IsNullOrEmpty(binaryLocation))
+            {
+                opts.BinaryLocation = binaryLocation;
+                Console.WriteLine($"Set {nameof(ChromeOptions)}.{nameof(opts.BinaryLocation)} to {binaryLocation}");
+            }
+
+            try
+            {
+                Browser = new RemoteWebDriver(opts);
+            }
+            catch (WebDriverException ex)
+            {
+                var message =
+                    "Failed to connect to the web driver. Please see the readme and follow the instructions to install selenium." +
+                    "Remember to start the web driver with `selenium-standalone start` before running the end-to-end tests.";
+                throw new InvalidOperationException(message, ex);
+            }
         }
 
         public void Dispose()

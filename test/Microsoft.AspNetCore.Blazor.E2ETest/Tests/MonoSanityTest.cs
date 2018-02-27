@@ -4,6 +4,8 @@
 using Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure;
 using Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure.ServerFixtures;
 using OpenQA.Selenium;
+using OpenQA.Selenium.Support.UI;
+using System;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
@@ -14,20 +16,28 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
             : base(browserFixture, serverFixture)
         {
             serverFixture.BuildWebHostMethod = MonoSanity.Program.BuildWebHost;
+            Navigate("/", noReload: true);
+            WaitUntilMonoRunningInBrowser();
+        }
+
+        private void WaitUntilMonoRunningInBrowser()
+        {
+            new WebDriverWait(Browser, TimeSpan.FromSeconds(30)).Until(driver =>
+            {
+                return ((IJavaScriptExecutor)driver)
+                    .ExecuteScript("return window.isTestReady;");
+            });
         }
 
         [Fact]
         public void HasTitle()
         {
-            Navigate("/", noReload: true);
             Assert.Equal("Mono sanity check", Browser.Title);
         }
 
         [Fact]
         public void CanAddNumbers()
         {
-            Navigate("/", noReload: true);
-
             SetValue(Browser, "addNumberA", "1001");
             SetValue(Browser, "addNumberB", "2002");
             Browser.FindElement(By.CssSelector("#addNumbers button")).Click();
@@ -38,8 +48,6 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         [Fact]
         public void CanRepeatString()
         {
-            Navigate("/", noReload: true);
-
             SetValue(Browser, "repeatStringStr", "Test");
             SetValue(Browser, "repeatStringCount", "5");
             Browser.FindElement(By.CssSelector("#repeatString button")).Click();
@@ -50,8 +58,6 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         [Fact]
         public void CanReceiveDotNetExceptionInJavaScript()
         {
-            Navigate("/", noReload: true);
-
             SetValue(Browser, "triggerExceptionMessage", "Hello from test");
             Browser.FindElement(By.CssSelector("#triggerException button")).Click();
 
@@ -61,7 +67,6 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         [Fact]
         public void CanCallJavaScriptFromDotNet()
         {
-            Navigate("/", noReload: true);
             SetValue(Browser, "callJsEvalExpression", "getUserAgentString()");
             Browser.FindElement(By.CssSelector("#callJs button")).Click();
             var result = GetValue(Browser, "callJsResult");
@@ -71,7 +76,6 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         [Fact]
         public void CanReceiveJavaScriptExceptionInDotNet()
         {
-            Navigate("/", noReload: true);
             SetValue(Browser, "callJsEvalExpression", "triggerJsException()");
             Browser.FindElement(By.CssSelector("#callJs button")).Click();
             var result = GetValue(Browser, "callJsResult");
@@ -84,7 +88,6 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         [Fact]
         public void CanEvaluateJsExpressionThatResultsInNull()
         {
-            Navigate("/", noReload: true);
             SetValue(Browser, "callJsEvalExpression", "null");
             Browser.FindElement(By.CssSelector("#callJs button")).Click();
             var result = GetValue(Browser, "callJsResult");
@@ -94,7 +97,6 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         [Fact]
         public void CanEvaluateJsExpressionThatResultsInUndefined()
         {
-            Navigate("/", noReload: true);
             SetValue(Browser, "callJsEvalExpression", "console.log('Not returning anything')");
             Browser.FindElement(By.CssSelector("#callJs button")).Click();
             var result = GetValue(Browser, "callJsResult");
@@ -104,20 +106,15 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
         [Fact]
         public void CanCallJsFunctionsWithoutBoxing()
         {
-            Navigate("/", noReload: true);
-
             SetValue(Browser, "callJsNoBoxingNumberA", "108");
             SetValue(Browser, "callJsNoBoxingNumberB", "4");
             Browser.FindElement(By.CssSelector("#callJsNoBoxing button")).Click();
-
             Assert.Equal(".NET received: 27", GetValue(Browser, "callJsNoBoxingResult"));
         }
 
         [Fact]
         public void CanCallJsFunctionsWithoutBoxingAndReceiveException()
         {
-            Navigate("/", noReload: true);
-
             SetValue(Browser, "callJsNoBoxingNumberA", "1");
             SetValue(Browser, "callJsNoBoxingNumberB", "0");
             Browser.FindElement(By.CssSelector("#callJsNoBoxing button")).Click();

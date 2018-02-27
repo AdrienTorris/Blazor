@@ -3,24 +3,24 @@
 
 using System;
 using System.Collections.Generic;
+using System.Configuration.Assemblies;
 using System.Linq;
+using System.Numerics;
 using BasicTestApp;
-using Microsoft.AspNetCore.Blazor.Components;
+using BasicTestApp.HierarchicalImportsTest.Subdir;
 using Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure;
 using Microsoft.AspNetCore.Blazor.E2ETest.Infrastructure.ServerFixtures;
 using OpenQA.Selenium;
-using OpenQA.Selenium.Support.UI;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
 {
-    public class ComponentRenderingTest
-        : ServerTestBase<DevHostServerFixture<BasicTestApp.Program>>
+    public class ComponentRenderingTest : BasicTestAppTestBase
     {
         public ComponentRenderingTest(BrowserFixture browserFixture, DevHostServerFixture<Program> serverFixture)
             : base(browserFixture, serverFixture)
         {
-            Navigate("/", noReload: true);
+            Navigate(ServerPathBase, noReload: true);
         }
 
         [Fact]
@@ -165,22 +165,39 @@ namespace Microsoft.AspNetCore.Blazor.E2ETest.Tests
             Assert.Equal("I computed: 202", computedValueElement.Text);
         }
 
-        private IWebElement MountTestComponent<TComponent>() where TComponent: IComponent
+        [Fact]
+        public void CanRenderFragmentsWhilePreservingSurroundingElements()
         {
-            var componentTypeName = typeof(TComponent).FullName;
-            WaitUntilDotNetRunningInBrowser();
-            ((IJavaScriptExecutor)Browser).ExecuteScript(
-                $"mountTestComponent('{componentTypeName}')");
-            return Browser.FindElement(By.TagName("app"));
+            // Initially, the region isn't shown
+            var appElement = MountTestComponent<RenderFragmentToggler>();
+            var originalButton = appElement.FindElement(By.TagName("button"));
+            var fragmentElements = appElement.FindElements(By.CssSelector("p[name=fragment-element]"));
+            Assert.Empty(fragmentElements);
+
+            // The JS-side DOM builder handles regions correctly, placing elements
+            // after the region after the corresponding elements
+            Assert.Equal("The end", appElement.FindElements(By.CssSelector("div > *:last-child")).Single().Text);
+
+            // When we click the button, the region is shown
+            originalButton.Click();
+            fragmentElements = appElement.FindElements(By.CssSelector("p[name=fragment-element]"));
+            Assert.Single(fragmentElements);
+
+            // The button itself was preserved, so we can click it again and see the effect
+            originalButton.Click();
+            fragmentElements = appElement.FindElements(By.CssSelector("p[name=fragment-element]"));
+            Assert.Empty(fragmentElements);
         }
 
-        private void WaitUntilDotNetRunningInBrowser()
+        [Fact]
+        public void CanUseViewImportsHierarchically()
         {
-            new WebDriverWait(Browser, TimeSpan.FromSeconds(30)).Until(driver =>
-            {
-                return ((IJavaScriptExecutor)driver)
-                    .ExecuteScript("return window.isTestReady;");
-            });
+            // The component is able to compile and output these type names only because
+            // of the _ViewImports.cshtml files at the same and ancestor levels
+            var appElement = MountTestComponent<ComponentUsingImports>();
+            Assert.Collection(appElement.FindElements(By.TagName("p")),
+                elem => Assert.Equal(typeof(Complex).FullName, elem.Text),
+                elem => Assert.Equal(typeof(AssemblyHashAlgorithm).FullName, elem.Text));
         }
     }
 }

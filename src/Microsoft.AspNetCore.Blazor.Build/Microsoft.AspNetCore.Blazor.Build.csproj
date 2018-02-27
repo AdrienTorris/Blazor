@@ -4,13 +4,14 @@
     <TargetFramework>netcoreapp2.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <OutDir>tools</OutDir>
+    <AssemblyName>dotnet-blazor</AssemblyName>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
-  <Target Name="SetPackageProperties" BeforeTargets="Pack">
+  <Target Name="SetPackageProperties" BeforeTargets="_IntermediatePack">
     <PropertyGroup>
       <NoPackageAnalysis>true</NoPackageAnalysis>
-      <NuspecFile>Microsoft.AspNetCore.Blazor.BuildTools.nuspec</NuspecFile>
-      <PackageVersion>0.0.1</PackageVersion>
+      <NuspecFile>Microsoft.AspNetCore.Blazor.Build.nuspec</NuspecFile>
       <NuspecProperties>version=$(PackageVersion)</NuspecProperties>
     </PropertyGroup>
   </Target>
@@ -21,10 +22,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Microsoft.AspNetCore.Blazor.Browser.JS\Microsoft.AspNetCore.Blazor.Browser.JS.csproj" />
+    <ProjectReference Include="..\Microsoft.AspNetCore.Blazor.DevHost\Microsoft.AspNetCore.Blazor.DevHost.csproj" />
     <ProjectReference Include="..\Microsoft.AspNetCore.Blazor.Mono\Microsoft.AspNetCore.Blazor.Mono.csproj" />
+    <ProjectReference Include="..\Microsoft.AspNetCore.Blazor.Razor.Extensions\Microsoft.AspNetCore.Blazor.Razor.Extensions.csproj" />
     <ProjectReference Include="..\Microsoft.AspNetCore.Blazor\Microsoft.AspNetCore.Blazor.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.Razor" Version="2.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Razor.Language" Version="2.0.1" />
     <PackageReference Include="Microsoft.Extensions.CommandLineUtils" Version="1.1.1" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Composite" Version="2.0.0" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Physical" Version="2.0.0" />
@@ -33,8 +34,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\anglesharp\AngleSharpBuilder\AngleSharpBuilder.csproj" ReferenceOutputAssembly="false" />
-    <Reference Include="Microsoft.AspNetCore.Blazor.AngleSharp" HintPath="..\anglesharp\AngleSharpBuilder\dist\Microsoft.AspNetCore.Blazor.AngleSharp.dll" />
+    <ProjectReference Include="..\anglesharp\AngleSharpBuilder\AngleSharpBuilder.csproj">
+      <Name>AngleSharpBuilder</Name>
+      <Private>False</Private>
+      <SetTargetFramework>TargetFramework=netcoreapp2.0</SetTargetFramework>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <Reference Include="..\anglesharp\AngleSharpBuilder\dist\Microsoft.AspNetCore.Blazor.AngleSharp.dll" />
   </ItemGroup>
-
 </Project>
