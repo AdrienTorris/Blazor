@@ -1,6 +1,8 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
+using System.Collections.Generic;
 using Xunit;
 
 namespace Microsoft.AspNetCore.Blazor.Test
@@ -46,12 +48,16 @@ namespace Microsoft.AspNetCore.Blazor.Test
             {
                 Id = 1844,
                 Name = "Athos",
-                Pets = new[] { "Aramis", "Porthos", "D'Artagnan" }
+                Pets = new[] { "Aramis", "Porthos", "D'Artagnan" },
+                Hobby = Hobbies.Swordfighting,
+                Nicknames = new List<string> { "Comte de la Fère", "Armand" },
+                BirthInstant = new DateTimeOffset(1825, 8, 6, 18, 45, 21, TimeSpan.FromHours(-6)),
+                Age = new TimeSpan(7665, 1, 30, 0)
             };
 
             // Act/Assert
             Assert.Equal(
-                "{\"Id\":1844,\"Name\":\"Athos\",\"Pets\":[\"Aramis\",\"Porthos\",\"D'Artagnan\"]}",
+                "{\"Id\":1844,\"Name\":\"Athos\",\"Pets\":[\"Aramis\",\"Porthos\",\"D'Artagnan\"],\"Hobby\":2,\"Nicknames\":[\"Comte de la Fère\",\"Armand\"],\"BirthInstant\":\"1825-08-06T18:45:21.0000000-06:00\",\"Age\":\"7665.01:30:00\"}",
                 JsonUtil.Serialize(person));
         }
 
@@ -59,7 +65,7 @@ namespace Microsoft.AspNetCore.Blazor.Test
         public void CanDeserializeClassFromJson()
         {
             // Arrange
-            var json = "{\"Id\":1844,\"Name\":\"Athos\",\"Pets\":[\"Aramis\",\"Porthos\",\"D'Artagnan\"]}";
+            var json = "{\"Id\":1844,\"Name\":\"Athos\",\"Pets\":[\"Aramis\",\"Porthos\",\"D'Artagnan\"],\"Hobby\":2,\"Nicknames\":[\"Comte de la Fère\",\"Armand\"],\"BirthInstant\":\"1825-08-06T18:45:21.0000000-06:00\",\"Age\":\"7665.01:30:00\"}";
 
             // Act
             var person = JsonUtil.Deserialize<Person>(json);
@@ -68,6 +74,50 @@ namespace Microsoft.AspNetCore.Blazor.Test
             Assert.Equal(1844, person.Id);
             Assert.Equal("Athos", person.Name);
             Assert.Equal(new[] { "Aramis", "Porthos", "D'Artagnan" }, person.Pets);
+            Assert.Equal(Hobbies.Swordfighting, person.Hobby);
+            Assert.Equal(new[] { "Comte de la Fère", "Armand" }, person.Nicknames);
+            Assert.Equal(new DateTimeOffset(1825, 8, 6, 18, 45, 21, TimeSpan.FromHours(-6)), person.BirthInstant);
+            Assert.Equal(new TimeSpan(7665, 1, 30, 0), person.Age);
+        }
+
+        [Fact]
+        public void CanSerializeStructToJson()
+        {
+            // Arrange
+            var commandResult = new SimpleStruct
+            {
+                StringProperty = "Test",
+                BoolProperty = true,
+                NullableIntProperty = 1
+            };
+            
+            // Act
+            var result = JsonUtil.Serialize(commandResult);
+            
+            // Assert
+            Assert.Equal("{\"StringProperty\":\"Test\",\"BoolProperty\":true,\"NullableIntProperty\":1}", result);
+        }
+
+        [Fact]
+        public void CanDeserializeStructFromJson()
+        {
+            // Arrange
+            var json = "{\"StringProperty\":\"Test\",\"BoolProperty\":true,\"NullableIntProperty\":1}";
+
+            //Act
+            var simpleError = JsonUtil.Deserialize<SimpleStruct>(json);
+
+            // Assert
+            Assert.Equal("Test", simpleError.StringProperty);
+            Assert.True(simpleError.BoolProperty);
+            Assert.Equal(1, simpleError.NullableIntProperty);
+        }
+
+        struct SimpleStruct
+        {
+            public string StringProperty { get; set; }
+            public bool BoolProperty { get; set; }
+            public int? NullableIntProperty { get; set; }
         }
 
         class Person
@@ -75,6 +125,12 @@ namespace Microsoft.AspNetCore.Blazor.Test
             public int Id { get; set; }
             public string Name { get; set; }
             public string[] Pets { get; set; }
+            public Hobbies Hobby { get; set; }
+            public IList<string> Nicknames { get; set; }
+            public DateTimeOffset BirthInstant { get; set; }
+            public TimeSpan Age { get; set; }
         }
+
+        enum Hobbies { Reading = 1, Swordfighting = 2 }
     }
 }

@@ -1,10 +1,9 @@
-﻿@using Microsoft.AspNetCore.Blazor.RenderTree
-@(Implements<Microsoft.AspNetCore.Blazor.Layouts.ILayoutComponent>())
+@implements ILayoutComponent
 
 <div class='container-fluid'>
     <div class='row'>
         <div class='col-sm-3'>
-            <c:NavMenu />
+            <NavMenu />
         </div>
         <div class='col-sm-9'>
             @Body
@@ -12,6 +11,7 @@
     </div>
 </div>
 
-@functions {
+@functions
+{
     public RenderFragment Body { get; set; }
 }

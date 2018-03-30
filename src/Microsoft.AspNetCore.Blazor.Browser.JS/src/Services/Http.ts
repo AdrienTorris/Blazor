@@ -2,8 +2,8 @@
 import { platform } from '../Environment';
 import { MethodHandle, System_String } from '../Platform/Platform';
 const httpClientAssembly = 'Microsoft.AspNetCore.Blazor.Browser';
-const httpClientNamespace = `${httpClientAssembly}.Services.Temporary`;
-const httpClientTypeName = 'HttpClient';
+const httpClientNamespace = `${httpClientAssembly}.Http`;
+const httpClientTypeName = 'BrowserHttpMessageHandler';
 const httpClientFullTypeName = `${httpClientNamespace}.${httpClientTypeName}`;
 let receiveResponseMethod: MethodHandle;
 
@@ -17,7 +17,7 @@ async function sendAsync(id: number, method: string, requestUri: string, body: s
   try {
     response = await fetch(requestUri, {
       method: method,
-      body: body,
+      body: body || undefined,
       headers: headersJson ? (JSON.parse(headersJson) as string[][]) : undefined
     });
     responseText = await response.text();

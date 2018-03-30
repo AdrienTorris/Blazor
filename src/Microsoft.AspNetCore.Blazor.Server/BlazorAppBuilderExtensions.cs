@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using System.IO;
 using System.Net.Mime;
+using Microsoft.AspNetCore.Hosting;
 
 namespace Microsoft.AspNetCore.Builder
 {
@@ -15,18 +16,15 @@ namespace Microsoft.AspNetCore.Builder
         /// <summary>
         /// Configures the middleware pipeline to work with Blazor.
         /// </summary>
+        /// <typeparam name="TProgram">Any type from the client app project. This is used to identify the client app assembly.</typeparam>
         /// <param name="applicationBuilder"></param>
-        /// <param name="clientAssemblyName"
-        ///     >The name of the client assembly relative to the current bin directory.</param>
-        public static void UseBlazor(
-            this IApplicationBuilder applicationBuilder,
-            string clientAssemblyName)
+        public static void UseBlazor<TProgram>(
+            this IApplicationBuilder applicationBuilder)
         {
-            var binDir = Path.GetDirectoryName(typeof(BlazorConfig).Assembly.Location);
-            var clientAssemblyPath = Path.Combine(binDir, $"{clientAssemblyName}.dll");
+            var clientAssemblyInServerBinDir = typeof(TProgram).Assembly;
             applicationBuilder.UseBlazor(new BlazorOptions
             {
-                ClientAssemblyPath = clientAssemblyPath,
+                ClientAssemblyPath = clientAssemblyInServerBinDir.Location,
             });
         }
 
@@ -39,9 +37,15 @@ namespace Microsoft.AspNetCore.Builder
             this IApplicationBuilder applicationBuilder,
             BlazorOptions options)
         {
+            // TODO: Make the .blazor.config file contents sane
+            // Currently the items in it are bizarre and don't relate to their purpose,
+            // hence all the path manipulation here. We shouldn't be hardcoding 'dist' here either.
+            var env = (IHostingEnvironment)applicationBuilder.ApplicationServices.GetService(typeof(IHostingEnvironment));
             var config = BlazorConfig.Read(options.ClientAssemblyPath);
             var clientAppBinDir = Path.GetDirectoryName(config.SourceOutputAssemblyPath);
-            var clientAppDistDir = Path.Combine(clientAppBinDir, "dist");
+            var clientAppDistDir = Path.Combine(
+                env.ContentRootPath,
+                Path.Combine(clientAppBinDir, "dist"));
             var distDirStaticFiles = new StaticFileOptions
             {
                 FileProvider = new PhysicalFileProvider(clientAppDistDir),
@@ -83,7 +87,7 @@ namespace Microsoft.AspNetCore.Builder
             var result = new FileExtensionContentTypeProvider();
             result.Mappings.Add(".dll", MediaTypeNames.Application.Octet);
             result.Mappings.Add(".mem", MediaTypeNames.Application.Octet);
-            result.Mappings.Add(".wasm", MediaTypeNames.Application.Octet);
+            result.Mappings.Add(".wasm", WasmMediaTypeNames.Application.Wasm);
             return result;
         }
     }
